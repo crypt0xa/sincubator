@@ -59,7 +59,6 @@ library LowGasSafeMath {
 
 contract OwnableData {
     address public owner;
-    address public Sins;
     address public pendingOwner;
 }
 
@@ -131,39 +130,51 @@ contract Sincubator is Ownable {
     uint256 public totalRaise = 0;
     INodes public Node;
     uint256 public startTimestamp;
+    mapping(address => bool) public whitelistedAddresses;
     // Initial tier will be ineligible
     uint256[7] public tierContributions;
     mapping (address => uint256) public contributions;
     mapping (uint => uint) public nodeTypes;
+    bool whitelistEnabled = true;
 
 
     constructor(address _nodeAddress, uint256 _maxRaise, uint256 _startTimestamp) {
         startTimestamp = _startTimestamp;
-        maxRaise = _maxRaise;     
+        maxRaise = _maxRaise.mul(1e18);     
         Node = INodes(_nodeAddress);
+    }
+
+    function whitelistAddresses(address[] calldata users) public onlyOwner {
+        for (uint i = 0; i < users.length; i++) {
+            whitelistedAddresses[users[i]] = true;
+        }
     }
     
     function contribute() public payable {
-        if (block.timestamp < startTimestamp){
-            revert ();
+        if (whitelistEnabled){
+            require(whitelistedAddresses[msg.sender], "Not Whitelised!");
         }
+        require(block.timestamp >= startTimestamp, "Contributions not open yet!");
+
         uint256 _maxContribution = maxContribution(msg.sender);
         uint256 _contribution = msg.value;
 
-        if (_contribution > _maxContribution) {
-            revert ();
-        }
-        if (totalRaise + _contribution > maxRaise) {
-            revert ();
-        }
+        require(_contribution == _maxContribution, "Amount Exceeds Max Contribution Allowed!");
+
+        require(totalRaise + _contribution <= maxRaise, "Raise Complete!");
+
         totalRaise += _contribution;
         contributions[msg.sender] += _contribution;
-        writeNodeData(msg.sender);
+        writeContributionNodeData(msg.sender);
     }
 
     
-    function setMaxRaise(uint256 _maxRaise) public onlyOwner {
-        maxRaise = _maxRaise;
+    function updateMaxRaise(uint256 _maxRaise) public onlyOwner {
+        maxRaise = _maxRaise.mul(1e18);
+    }
+
+    function toggleWhitelist(bool _enabled) public onlyOwner {
+        whitelistEnabled = _enabled;
     }
 
     function getBalance() public view returns (uint) {
@@ -195,7 +206,7 @@ contract Sincubator is Ownable {
         return maxType;
     }
 
-    function writeNodeData(address wallet) private returns (bool){
+    function writeContributionNodeData(address wallet) private returns (bool){
         uint256[] memory nodes = Node.walletOfOwner(wallet);
         uint256 nodeType;
         for (uint i = 0; i < nodes.length; i++){

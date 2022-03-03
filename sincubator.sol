@@ -136,12 +136,21 @@ contract Sincubator is Ownable {
     mapping (address => uint256) public contributions;
     mapping (uint => uint) public nodeTypes;
     bool whitelistEnabled = true;
-
+    
+    // for skipping node check
+    mapping (address => bool) public teamAddresses;
 
     constructor(address _nodeAddress, uint256 _maxRaise, uint256 _startTimestamp) {
         startTimestamp = _startTimestamp;
         maxRaise = _maxRaise.mul(1e18);     
         Node = INodes(_nodeAddress);
+    }
+
+
+    function addTeamAddresses(address[] calldata _addresses) public onlyOwner {
+        for (uint i = 0; i < _addresses.length; i++) {
+            teamAddresses[_addresses[i]] = true;
+        }
     }
 
     function whitelistAddresses(address[] calldata users) public onlyOwner {
@@ -159,7 +168,7 @@ contract Sincubator is Ownable {
         uint256 _maxContribution = maxContribution(msg.sender);
         uint256 _contribution = msg.value;
 
-        require(_contribution == _maxContribution, "Amount Exceeds Max Contribution Allowed!");
+        require(_contribution == _maxContribution, "Incorrect Amount!");
 
         require(totalRaise + _contribution <= maxRaise, "Raise Complete!");
 
@@ -201,6 +210,10 @@ contract Sincubator is Ownable {
         }
 
         if (demonNodes >=3){
+            return 6;
+        }
+        
+        if (teamAddresses[wallet]){
             return 6;
         }
         return maxType;
